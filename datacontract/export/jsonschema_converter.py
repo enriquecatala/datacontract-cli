@@ -3,6 +3,14 @@ from typing import Dict
 
 from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field
 
+from datacontract.export.exporter import Exporter, _check_models_for_export
+
+
+class JsonSchemaExporter(Exporter):
+    def export(self, data_contract, model, server, sql_server_type, export_args) -> dict:
+        model_name, model_value = _check_models_for_export(data_contract, model, self.export_format)
+        return to_jsonschema_json(model_name, model_value)
+
 
 def to_jsonschemas(data_contract_spec: DataContractSpecification):
     jsonschmemas = {}
@@ -15,21 +23,6 @@ def to_jsonschemas(data_contract_spec: DataContractSpecification):
 def to_jsonschema_json(model_key, model_value: Model) -> str:
     jsonschema = to_jsonschema(model_key, model_value)
     return json.dumps(jsonschema, indent=2)
-
-
-def to_jsonschema(model_key, model_value: Model) -> dict:
-    model = {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "properties": to_properties(model_value.fields),
-        "required": to_required(model_value.fields),
-    }
-    if model_value.title:
-        model["title"] = model_value.title
-    if model_value.description:
-        model["description"] = model_value.description
-
-    return model
 
 
 def to_properties(fields: Dict[str, Field]) -> dict:
@@ -65,27 +58,27 @@ def to_property(field: Field) -> dict:
         property["pattern"] = field.pattern
     if field.enum:
         property["enum"] = field.enum
-    if field.minLength:
+    if field.minLength is not None:
         property["minLength"] = field.minLength
-    if field.maxLength:
+    if field.maxLength is not None:
         property["maxLength"] = field.maxLength
     if field.title:
         property["title"] = field.title
     if field.description:
         property["description"] = field.description
-    if field.exclusiveMinimum:
+    if field.exclusiveMinimum is not None:
         property["exclusiveMinimum"] = field.exclusiveMinimum
-    if field.exclusiveMaximum:
+    if field.exclusiveMaximum is not None:
         property["exclusiveMaximum"] = field.exclusiveMaximum
-    if field.minimum:
+    if field.minimum is not None:
         property["minimum"] = field.minimum
-    if field.maximum:
+    if field.maximum is not None:
         property["maximum"] = field.maximum
     if field.tags:
         property["tags"] = field.tags
     if field.pii:
         property["pii"] = field.pii
-    if field.classification:
+    if field.classification is not None:
         property["classification"] = field.classification
 
     # TODO: all constraints
@@ -126,7 +119,7 @@ def convert_type_format(type, format) -> (str, str):
     return None, None
 
 
-def convert_format(format):
+def convert_format(self, format):
     if format is None:
         return None
     if format.lower() in ["uri"]:
@@ -138,3 +131,18 @@ def convert_format(format):
     if format.lower() in ["boolean"]:
         return "boolean"
     return None
+
+
+def to_jsonschema(model_key, model_value: Model) -> dict:
+    model = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": to_properties(model_value.fields),
+        "required": to_required(model_value.fields),
+    }
+    if model_value.title:
+        model["title"] = model_value.title
+    if model_value.description:
+        model["description"] = model_value.description
+
+    return model

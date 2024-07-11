@@ -1,6 +1,29 @@
 from datacontract.export.sql_type_converter import convert_to_sql_type
 from datacontract.model.data_contract_specification import DataContractSpecification, Model
 
+from datacontract.export.exporter import Exporter, _check_models_for_export, _determine_sql_server_type
+
+
+class SqlExporter(Exporter):
+    def export(self, data_contract, model, server, sql_server_type, export_args) -> dict:
+        server_type = _determine_sql_server_type(
+            data_contract,
+            sql_server_type,
+        )
+        return to_sql_ddl(data_contract, server_type, export_args.get("server"))
+
+
+class SqlQueryExporter(Exporter):
+    def export(self, data_contract, model, server, sql_server_type, export_args) -> dict:
+        model_name, model_value = _check_models_for_export(data_contract, model, self.export_format)
+        server_type = _determine_sql_server_type(data_contract, sql_server_type, export_args.get("server"))
+        return to_sql_query(
+            data_contract,
+            model_name,
+            model_value,
+            server_type,
+        )
+
 
 def to_sql_query(
     data_contract_spec: DataContractSpecification, model_name: str, model_value: Model, server_type: str = "snowflake"
@@ -37,7 +60,9 @@ def _to_sql_query(model_name, model_value, server_type) -> str:
     return result
 
 
-def to_sql_ddl(data_contract_spec: DataContractSpecification, server_type: str = "snowflake") -> str:
+def to_sql_ddl(
+    data_contract_spec: DataContractSpecification, server_type: str = "snowflake", server: str = None
+) -> str:
     if data_contract_spec is None:
         return ""
     if data_contract_spec.models is None or len(data_contract_spec.models) == 0:
@@ -45,7 +70,12 @@ def to_sql_ddl(data_contract_spec: DataContractSpecification, server_type: str =
 
     table_prefix = ""
 
-    for server_name, server in iter(data_contract_spec.servers.items()):
+    if server is None:
+        servers = data_contract_spec.servers
+    else:
+        servers = {server: data_contract_spec.servers[server]}
+
+    for server_name, server in iter(servers.items()):
         if server.type == "snowflake":
             server_type = "snowflake"
             break

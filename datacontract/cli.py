@@ -1,10 +1,10 @@
-from enum import Enum
 from importlib import metadata
 from pathlib import Path
 from typing import Iterable, Optional
 from typing import List
 
 import typer
+import uvicorn
 from click import Context
 from rich import box
 from rich.console import Console
@@ -12,10 +12,14 @@ from rich.table import Table
 from typer.core import TyperGroup
 from typing_extensions import Annotated
 
+from datacontract import web
 from datacontract.catalog.catalog import create_index_html, create_data_contract_html
 from datacontract.data_contract import DataContract, ExportFormat
+from datacontract.imports.importer import ImportFormat
 from datacontract.init.download_datacontract_file import download_datacontract_file, FileExistsException
 from datacontract.publish.publish import publish_to_datamesh_manager
+
+DEFAULT_DATA_CONTRACT_SCHEMA_URL = "https://datacontract.com/datacontract.schema.json"
 
 console = Console()
 
@@ -84,7 +88,7 @@ def lint(
     ] = "datacontract.yaml",
     schema: Annotated[
         str, typer.Option(help="The location (url or path) of the Data Contract Specification JSON Schema")
-    ] = "https://datacontract.com/datacontract.schema.json",
+    ] = DEFAULT_DATA_CONTRACT_SCHEMA_URL,
 ):
     """
     Validate that the datacontract.yaml is correctly formatted.
@@ -100,7 +104,7 @@ def test(
     ] = "datacontract.yaml",
     schema: Annotated[
         str, typer.Option(help="The location (url or path) of the Data Contract Specification JSON Schema")
-    ] = "https://datacontract.com/datacontract.schema.json",
+    ] = DEFAULT_DATA_CONTRACT_SCHEMA_URL,
     server: Annotated[
         str,
         typer.Option(
@@ -175,14 +179,18 @@ def export(
     location: Annotated[
         str, typer.Argument(help="The location (url or path) of the data contract yaml.")
     ] = "datacontract.yaml",
+    schema: Annotated[
+        str, typer.Option(help="The location (url or path) of the Data Contract Specification JSON Schema")
+    ] = DEFAULT_DATA_CONTRACT_SCHEMA_URL,
 ):
     """
     Convert data contract to a specific format. console.prints to stdout.
     """
     # TODO exception handling
-    result = DataContract(data_contract_file=location, server=server).export(
+    result = DataContract(data_contract_file=location, schema_location=schema, server=server).export(
         export_format=format,
         model=model,
+        server=server,
         rdf_base=rdf_base,
         sql_server_type=sql_server_type,
     )
@@ -193,14 +201,6 @@ def export(
         with output.open("w") as f:
             f.write(result)
         console.print(f"Written result to {output}")
-
-
-class ImportFormat(str, Enum):
-    sql = "sql"
-    avro = "avro"
-    glue = "glue"
-    bigquery = "bigquery"
-    jsonschema = "jsonschema"
 
 
 @app.command(name="import")
@@ -223,11 +223,22 @@ def import_(
             help="List of table ids to import from the bigquery API (repeat for multiple table ids, leave empty for all tables in the dataset)."
         ),
     ] = None,
+    unity_table_full_name: Annotated[
+        Optional[str], typer.Option(help="Full name of a table in the unity catalog")
+    ] = None,
 ):
     """
     Create a data contract from the given source location. Prints to stdout.
     """
-    result = DataContract().import_from_source(format, source, glue_table, bigquery_table, bigquery_project, bigquery_dataset)
+    result = DataContract().import_from_source(
+        format=format,
+        source=source,
+        glue_table=glue_table,
+        bigquery_table=bigquery_table,
+        bigquery_project=bigquery_project,
+        bigquery_dataset=bigquery_dataset,
+        unity_table_full_name=unity_table_full_name,
+    )
     console.print(result.to_yaml())
 
 
@@ -236,12 +247,15 @@ def publish(
     location: Annotated[
         str, typer.Argument(help="The location (url or path) of the data contract yaml.")
     ] = "datacontract.yaml",
+    schema: Annotated[
+        str, typer.Option(help="The location (url or path) of the Data Contract Specification JSON Schema")
+    ] = DEFAULT_DATA_CONTRACT_SCHEMA_URL,
 ):
     """
     Publish the data contract to the Data Mesh Manager.
     """
     publish_to_datamesh_manager(
-        data_contract=DataContract(data_contract_file=location),
+        data_contract=DataContract(data_contract_file=location, schema_location=schema),
     )
 
 
@@ -251,6 +265,9 @@ def catalog(
         Optional[str], typer.Option(help="Glob pattern for the data contract files to include in the catalog.")
     ] = "*.yaml",
     output: Annotated[Optional[str], typer.Option(help="Output directory for the catalog html files.")] = "catalog/",
+    schema: Annotated[
+        str, typer.Option(help="The location (url or path) of the Data Contract Specification JSON Schema")
+    ] = DEFAULT_DATA_CONTRACT_SCHEMA_URL,
 ):
     """
     Create an html catalog of data contracts.
@@ -262,7 +279,7 @@ def catalog(
     contracts = []
     for file in Path().glob(files):
         try:
-            create_data_contract_html(contracts, file, path)
+            create_data_contract_html(contracts, file, path, schema)
         except Exception as e:
             console.print(f"Skipped {file} due to error: {e}")
 
@@ -321,6 +338,18 @@ def diff(
     )
 
     console.print(result.changelog_str())
+
+
+@app.command()
+def serve(
+    port: Annotated[int, typer.Option(help="Bind socket to this port.")] = 4242,
+    host: Annotated[str, typer.Option(help="Bind socket to this host.")] = "127.0.0.1",
+):
+    """
+    Start the datacontract web server.
+    """
+
+    uvicorn.run(web.app, port=port, host=host)
 
 
 def _handle_result(run):

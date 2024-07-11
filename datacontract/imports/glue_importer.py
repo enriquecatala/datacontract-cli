@@ -1,6 +1,7 @@
 import boto3
 from typing import List
 
+from datacontract.imports.importer import Importer
 from datacontract.model.data_contract_specification import (
     DataContractSpecification,
     Model,
@@ -9,7 +10,14 @@ from datacontract.model.data_contract_specification import (
 )
 
 
-def get_glue_database(datebase_name: str):
+class GlueImporter(Importer):
+    def import_source(
+        self, data_contract_specification: DataContractSpecification, source: str, import_args: dict
+    ) -> dict:
+        return import_glue(data_contract_specification, source, import_args.get("glue_tables"))
+
+
+def get_glue_database(database_name: str):
     """Get the details Glue database.
 
     Args:
@@ -18,31 +26,32 @@ def get_glue_database(datebase_name: str):
     Returns:
         set: catalogid and locationUri
     """
-
     glue = boto3.client("glue")
     try:
-        response = glue.get_database(Name=datebase_name)
+        response = glue.get_database(Name=database_name)
     except glue.exceptions.EntityNotFoundException:
-        print(f"Database not found {datebase_name}.")
+        print(f"Database not found {database_name}.")
         return (None, None)
     except Exception as e:
         # todo catch all
         print(f"Error: {e}")
         return (None, None)
 
-    return (response["Database"]["CatalogId"], response["Database"].get("LocationUri", "None"))
+    return (
+        response["Database"]["CatalogId"],
+        response["Database"].get("LocationUri", "None"),
+    )
 
 
 def get_glue_tables(database_name: str) -> List[str]:
     """Get the list of tables in a Glue database.
 
     Args:
-        database_name (str): glue database to request.
+        database_name (str): Glue database to request.
 
     Returns:
-        List[string]: List of table names
+        List[str]: List of table names
     """
-
     glue = boto3.client("glue")
 
     # Set the paginator
@@ -107,9 +116,21 @@ def get_glue_table_schema(database_name: str, table_name: str):
     return table_schema
 
 
-def import_glue(data_contract_specification: DataContractSpecification, source: str, table_names: List[str]):
-    """Import the schema of a Glue database."""
+def import_glue(
+    data_contract_specification: DataContractSpecification,
+    source: str,
+    table_names: List[str],
+):
+    """Import the schema of a Glue database.
 
+    Args:
+        data_contract_specification (DataContractSpecification): The data contract specification to update.
+        source (str): The name of the Glue database.
+        table_names (List[str]): List of table names to import. If None, all tables in the database are imported.
+
+    Returns:
+        DataContractSpecification: The updated data contract specification.
+    """
     catalogid, location_uri = get_glue_database(source)
 
     # something went wrong
@@ -131,16 +152,20 @@ def import_glue(data_contract_specification: DataContractSpecification, source: 
 
         fields = {}
         for column in table_schema:
-            field = Field()
-            field.type = map_type_from_sql(column["Type"])
+            field = create_typed_field(column["Type"])
 
             # hive partitons are required, but are not primary keys
             if column.get("Hive"):
                 field.required = True
 
             field.description = column.get("Comment")
-
             fields[column["Name"]] = field
+
+            if "decimal" in column["Type"]:
+                # Extract precision and scale from the string
+                perc_scale = column["Type"][8:-1].split(",")
+                field.precision = int(perc_scale[0])
+                field.scale = int(perc_scale[1])
 
         data_contract_specification.models[table_name] = Model(
             type="table",
@@ -150,35 +175,102 @@ def import_glue(data_contract_specification: DataContractSpecification, source: 
     return data_contract_specification
 
 
-def map_type_from_sql(sql_type: str):
+def create_typed_field(dtype: str) -> Field:
+    """Create a typed field based on the given data type.
+
+    Args:
+        dtype (str): The data type of the field.
+
+    Returns:
+        Field: The created field with the appropriate type.
+    """
+    field = Field()
+    dtype = dtype.strip().lower().replace(" ", "")
+    if dtype.startswith(("array", "struct")):
+        orig_dtype: str = dtype
+        if dtype.startswith("array"):
+            field.type = "array"
+            field.items = create_typed_field(orig_dtype[6:-1])
+        elif dtype.startswith("struct"):
+            field.type = "struct"
+            for f in split_struct(orig_dtype[7:-1]):
+                field.fields[f.split(":", 1)[0].strip()] = create_typed_field(f.split(":", 1)[1])
+    else:
+        field.type = map_type_from_sql(dtype)
+    return field
+
+
+def split_fields(s: str):
+    """Split a string of fields considering nested structures.
+
+    Args:
+        s (str): The string to split.
+
+    Yields:
+        str: The next field in the string.
+    """
+    counter: int = 0
+    last: int = 0
+    for i, x in enumerate(s):
+        if x in ("<", "("):
+            counter += 1
+        elif x in (">", ")"):
+            counter -= 1
+        elif x == "," and counter == 0:
+            yield s[last:i]
+            last = i + 1
+    yield s[last:]
+
+
+def split_struct(s: str) -> List[str]:
+    """Split a struct string into individual fields.
+
+    Args:
+        s (str): The struct string to split.
+
+    Returns:
+        List[str]: List of individual fields in the struct.
+    """
+    return list(split_fields(s=s))
+
+
+def map_type_from_sql(sql_type: str) -> str:
+    """Map an SQL type to a corresponding field type.
+
+    Args:
+        sql_type (str): The SQL type to map.
+
+    Returns:
+        str: The corresponding field type.
+    """
     if sql_type is None:
         return None
 
-    if sql_type.lower().startswith("varchar"):
+    sql_type = sql_type.lower()
+    if sql_type.startswith("varchar"):
         return "varchar"
-    if sql_type.lower().startswith("string"):
+    if sql_type.startswith("string"):
         return "string"
-    if sql_type.lower().startswith("text"):
+    if sql_type.startswith("text"):
         return "text"
-    elif sql_type.lower().startswith("byte"):
+    if sql_type.startswith("byte"):
         return "byte"
-    elif sql_type.lower().startswith("short"):
+    if sql_type.startswith("short"):
         return "short"
-    elif sql_type.lower().startswith("integer"):
+    if sql_type.startswith("integer") or sql_type.startswith("int"):
         return "integer"
-    elif sql_type.lower().startswith("long"):
+    if sql_type.startswith("long") or sql_type.startswith("bigint"):
         return "long"
-    elif sql_type.lower().startswith("bigint"):
-        return "long"
-    elif sql_type.lower().startswith("float"):
+    if sql_type.startswith("float"):
         return "float"
-    elif sql_type.lower().startswith("double"):
+    if sql_type.startswith("double"):
         return "double"
-    elif sql_type.lower().startswith("boolean"):
+    if sql_type.startswith("boolean"):
         return "boolean"
-    elif sql_type.lower().startswith("timestamp"):
+    if sql_type.startswith("timestamp"):
         return "timestamp"
-    elif sql_type.lower().startswith("date"):
+    if sql_type.startswith("date"):
         return "date"
-    else:
-        return "variant"
+    if sql_type.startswith("decimal"):
+        return "decimal"
+    return "variant"

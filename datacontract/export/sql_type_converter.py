@@ -15,13 +15,15 @@ def convert_to_sql_type(field: Field, server_type: str) -> str:
         return convert_type_to_sqlserver(field)
     elif server_type == "bigquery":
         return convert_type_to_bigquery(field)
+    elif server_type == "trino":
+        return convert_type_to_trino(field)
     return field.type
 
 
 # snowflake data types:
 # https://docs.snowflake.com/en/sql-reference/data-types.html
 def convert_to_snowflake(field: Field) -> None | str:
-    if field.config and field.config["snowflakeType"] is not None:
+    if field.config and "snowflakeType" in field.config:
         return field.config["snowflakeType"]
 
     type = field.type
@@ -64,7 +66,7 @@ def convert_to_snowflake(field: Field) -> None | str:
 # https://www.postgresql.org/docs/current/datatype.html
 # Using the name whenever possible
 def convert_type_to_postgres(field: Field) -> None | str:
-    if field.config and field.config["postgresType"] is not None:
+    if field.config and "postgresType" in field.config:
         return field.config["postgresType"]
 
     type = field.type
@@ -109,7 +111,7 @@ def convert_type_to_postgres(field: Field) -> None | str:
 # databricks data types:
 # https://docs.databricks.com/en/sql/language-manual/sql-ref-datatypes.html
 def convert_to_databricks(field: Field) -> None | str:
-    if field.config and field.config["databricksType"] is not None:
+    if field.config and "databricksType" in field.config:
         return field.config["databricksType"]
     type = field.type
     if type is None:
@@ -161,8 +163,7 @@ def convert_to_duckdb(field: Field) -> None | str:
     if type.lower() in ["time"]:
         return "TIME"  # TIME WITHOUT TIME ZONE
     if type.lower() in ["number", "decimal", "numeric"]:
-        # precision and scale not supported by data contract
-        return "DECIMAL"
+        return f"DECIMAL({field.precision},{field.scale})"
     if type.lower() in ["float"]:
         return "FLOAT"
     if type.lower() in ["double"]:
@@ -250,3 +251,29 @@ def get_type_config(field: Field, config_attr: str) -> dict[str, str] | None:
     if not field.config:
         return None
     return field.config.get(config_attr, None)
+
+
+def convert_type_to_trino(field: Field) -> None | str:
+    """Convert from supported datacontract types to equivalent trino types"""
+    field_type = field.type
+
+    if field_type.lower() in ["string", "text", "varchar"]:
+        return "varchar"
+    # tinyint, smallint not supported by data contract
+    if field_type.lower() in ["number", "decimal", "numeric"]:
+        # precision and scale not supported by data contract
+        return "decimal"
+    if field_type.lower() in ["int", "integer"]:
+        return "integer"
+    if field_type.lower() in ["long", "bigint"]:
+        return "bigint"
+    if field_type.lower() in ["float"]:
+        return "real"
+    if field_type.lower() in ["timestamp", "timestamp_tz"]:
+        return "timestamp(3) with time zone"
+    if field_type.lower() in ["timestamp_ntz"]:
+        return "timestamp(3)"
+    if field_type.lower() in ["bytes"]:
+        return "varbinary"
+    if field_type.lower() in ["object", "record", "struct"]:
+        return "json"

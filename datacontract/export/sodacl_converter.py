@@ -2,6 +2,12 @@ import yaml
 
 from datacontract.export.sql_type_converter import convert_to_sql_type
 from datacontract.model.data_contract_specification import DataContractSpecification
+from datacontract.export.exporter import Exporter
+
+
+class SodaExporter(Exporter):
+    def export(self, data_contract, model, server, sql_server_type, export_args) -> dict:
+        return to_sodacl_yaml(data_contract)
 
 
 def to_sodacl_yaml(
@@ -35,27 +41,32 @@ def to_checks(model_key, model_value, server_type: str, check_types: bool):
         if field.unique:
             checks.append(check_field_unique(field_name, quote_field_name))
         if field.minLength is not None:
-            checks.append(check_field_min_length(field_name, field.minLength))
+            checks.append(check_field_min_length(field_name, field.minLength, quote_field_name))
         if field.maxLength is not None:
-            checks.append(check_field_max_length(field_name, field.maxLength))
+            checks.append(check_field_max_length(field_name, field.maxLength, quote_field_name))
         if field.minimum is not None:
-            checks.append(check_field_minimum(field_name, field.minimum))
+            checks.append(check_field_minimum(field_name, field.minimum, quote_field_name))
         if field.maximum is not None:
-            checks.append(check_field_maximum(field_name, field.maximum))
+            checks.append(check_field_maximum(field_name, field.maximum, quote_field_name))
         if field.exclusiveMinimum is not None:
-            checks.append(check_field_minimum(field_name, field.exclusiveMinimum))
-            checks.append(check_field_not_equal(field_name, field.exclusiveMinimum))
+            checks.append(check_field_minimum(field_name, field.exclusiveMinimum, quote_field_name))
+            checks.append(check_field_not_equal(field_name, field.exclusiveMinimum, quote_field_name))
         if field.exclusiveMaximum is not None:
-            checks.append(check_field_maximum(field_name, field.exclusiveMaximum))
-            checks.append(check_field_not_equal(field_name, field.exclusiveMaximum))
+            checks.append(check_field_maximum(field_name, field.exclusiveMaximum, quote_field_name))
+            checks.append(check_field_not_equal(field_name, field.exclusiveMaximum, quote_field_name))
         if field.pattern is not None:
-            checks.append(check_field_regex(field_name, field.pattern))
+            checks.append(check_field_regex(field_name, field.pattern, quote_field_name))
         if field.enum is not None and len(field.enum) > 0:
-            checks.append(check_field_enum(field_name, field.enum))
+            checks.append(check_field_enum(field_name, field.enum, quote_field_name))
         # TODO references: str = None
         # TODO format
 
-    return f"checks for {model_key}", checks
+    checks_for_model_key = f"checks for {model_key}"
+
+    if quote_field_name:
+        checks_for_model_key = f'checks for "{model_key}"'
+
+    return checks_for_model_key, checks
 
 
 def check_field_is_present(field_name):
@@ -98,7 +109,7 @@ def check_field_min_length(field_name, min_length, quote_field_name: bool = Fals
         field_name = f'"{field_name}"'
     return {
         f"invalid_count({field_name}) = 0": {
-            "name": f"Check that field {field_name} has a min length of {min}",
+            "name": f"Check that field {field_name} has a min length of {min_length}",
             "valid min length": min_length,
         }
     }

@@ -10,9 +10,15 @@ class Contact(pyd.BaseModel):
     url: str = None
     email: str = None
 
+    model_config = pyd.ConfigDict(
+        extra="allow",
+    )
+
 
 class Server(pyd.BaseModel):
     type: str = None
+    description: str = None
+    environment: str = None
     format: str = None
     project: str = None
     dataset: str = None
@@ -33,12 +39,21 @@ class Server(pyd.BaseModel):
     outputPortId: str = None
     driver: str = None
 
+    model_config = pyd.ConfigDict(
+        extra="allow",
+    )
+
 
 class Terms(pyd.BaseModel):
     usage: str = None
     limitations: str = None
     billing: str = None
     noticePeriod: str = None
+    description: str = None
+
+    model_config = pyd.ConfigDict(
+        extra="allow",
+    )
 
 
 class Definition(pyd.BaseModel):
@@ -59,7 +74,12 @@ class Definition(pyd.BaseModel):
     pii: bool = None
     classification: str = None
     tags: List[str] = []
+    links: Dict[str, str] = {}
     example: str = None
+
+    model_config = pyd.ConfigDict(
+        extra="allow",
+    )
 
 
 class Field(pyd.BaseModel):
@@ -84,6 +104,7 @@ class Field(pyd.BaseModel):
     exclusiveMaximum: int = None
     enum: List[str] = []
     tags: List[str] = []
+    links: Dict[str, str] = {}
     fields: Dict[str, "Field"] = {}
     items: "Field" = None
     precision: int = None
@@ -91,12 +112,16 @@ class Field(pyd.BaseModel):
     example: str = None
     config: Dict[str, Any] = None
 
+    model_config = pyd.ConfigDict(
+        extra="allow",
+    )
+
 
 class Model(pyd.BaseModel):
-    description: str = None
-    type: str = None
-    namespace: str = None
-    title: str = None
+    description: Optional[str] = None
+    type: Optional[str] = None
+    namespace: Optional[str] = None
+    title: Optional[str] = None
     fields: Dict[str, Field] = {}
     config: Dict[str, Any] = None
 
@@ -108,6 +133,10 @@ class Info(pyd.BaseModel):
     description: str = None
     owner: str = None
     contact: Contact = None
+
+    model_config = pyd.ConfigDict(
+        extra="allow",
+    )
 
 
 class Example(pyd.BaseModel):
@@ -190,6 +219,8 @@ class DataContractSpecification(pyd.BaseModel):
     examples: List[Example] = []
     quality: Quality = None
     servicelevels: Optional[ServiceLevel] = None
+    links: Dict[str, str] = {}
+    tags: List[str] = []
 
     @classmethod
     def from_file(cls, file):

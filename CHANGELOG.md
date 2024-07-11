@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Fix import of pyspark for type-checking when pyspark isn't required as a module (#312)
+
+## [0.10.9] - 2024-07-03
+
+### Added
+- Add support for Trino (#278)
+- Spark export: add Spark StructType exporter (#277)
+- add `--schema` option for the `catalog` and `export` command to provide the schema also locally
+- Integrate support into the pre-commit workflow. For further details, please refer to the information provided [here](./README.md#use-with-pre-commit).
+- Improved HTML export, supporting links, tags, and more
+- Add support for AWS SESSION_TOKEN (#309)
+
+### Changed
+- Added array management on HTML export (#299)
+
+### Fixed
+- Fix `datacontract import --format jsonschema` when description is missing (#300)
+- Fix `datacontract test` with case-sensitive Postgres table names (#310)
+
+## [0.10.8] - 2024-06-19
+
+### Added
+- `datacontract serve` start a local web server to provide a REST-API for the commands
+- Provide server for sql export for the appropriate schema (#153)
+- Add struct and array management to Glue export (#271)
+
+### Changed
+- Introduced optional dependencies/extras for significantly faster installation times. (#213)
+- Added delta-lake as an additional optional dependency
+- support `GOOGLE_APPLICATION_CREDENTIALS` as variable for connecting to bigquery in `datacontract test`
+- better support bigqueries `type` attribute, don't assume all imported models are tables
+- added initial implementation of an importer from unity catalog (not all data types supported, yet)
+- added the importer factory. This refactoring aims to make it easier to create new importers and consequently the growth and maintainability of the project. (#273)
+
+### Fixed
+- `datacontract export --format avro` fixed array structure (#243)
 
 ## [0.10.7] - 2024-05-31
 

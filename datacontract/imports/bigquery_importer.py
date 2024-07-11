@@ -1,10 +1,26 @@
 import json
+import logging
 from typing import List
 
-from google.cloud import bigquery
-
+from datacontract.imports.importer import Importer
 from datacontract.model.data_contract_specification import DataContractSpecification, Model, Field
 from datacontract.model.exceptions import DataContractException
+
+
+class BigQueryImporter(Importer):
+    def import_source(
+        self, data_contract_specification: DataContractSpecification, source: str, import_args: dict
+    ) -> dict:
+        if source is not None:
+            data_contract_specification = import_bigquery_from_json(data_contract_specification, source)
+        else:
+            data_contract_specification = import_bigquery_from_api(
+                data_contract_specification,
+                import_args.get("bigquery_tables"),
+                import_args.get("bigquery_project"),
+                import_args.get("bigquery_dataset"),
+            )
+        return data_contract_specification
 
 
 def import_bigquery_from_json(
@@ -30,6 +46,18 @@ def import_bigquery_from_api(
     bigquery_project: str,
     bigquery_dataset: str,
 ) -> DataContractSpecification:
+    try:
+        from google.cloud import bigquery
+    except ImportError as e:
+        raise DataContractException(
+            type="schema",
+            result="failed",
+            name="bigquery extra missing",
+            reason="Install the extra datacontract-cli[bigquery] to use bigquery",
+            engine="datacontract",
+            original_exception=e,
+        )
+
     client = bigquery.Client(project=bigquery_project)
 
     if bigquery_tables is None:
@@ -63,7 +91,7 @@ def import_bigquery_from_api(
     return data_contract_specification
 
 
-def fetch_table_names(client: bigquery.Client, dataset: str) -> List[str]:
+def fetch_table_names(client, dataset: str) -> List[str]:
     table_names = []
     api_tables = client.list_tables(dataset)
     for api_table in api_tables:
@@ -84,7 +112,9 @@ def convert_bigquery_schema(
     # what exactly leads to friendlyName being set
     table_id = bigquery_schema.get("tableReference").get("tableId")
 
-    data_contract_specification.models[table_id] = Model(fields=fields, type="table")
+    data_contract_specification.models[table_id] = Model(
+        fields=fields, type=map_bigquery_type(bigquery_schema.get("type"))
+    )
 
     # Copy the description, if it exists
     if bigquery_schema.get("description") is not None:
@@ -176,3 +206,16 @@ def map_type_from_bigquery(bigquery_type_str: str):
             reason=f"Unsupported type {bigquery_type_str} in bigquery json definition.",
             engine="datacontract",
         )
+
+
+def map_bigquery_type(bigquery_type: str) -> str:
+    if bigquery_type == "TABLE" or bigquery_type == "EXTERNAL" or bigquery_type == "SNAPSHOT":
+        return "table"
+    elif bigquery_type == "VIEW" or bigquery_type == "MATERIALIZED_VIEW":
+        return "view"
+    else:
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"Can't properly map bigquery table type '{bigquery_type}' to datacontracts model types. Mapping it to table."
+        )
+        return "table"

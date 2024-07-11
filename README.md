@@ -25,8 +25,9 @@ This data contract contains all information to connect to S3 and check that the 
 
 Let's use [pip](https://pip.pypa.io/en/stable/getting-started/) to install the CLI (or use the [Docker image](#docker), if you prefer).
 ```bash
-$ python3 -m pip install datacontract-cli
+$ python3 -m pip install datacontract-cli[all]
 ```
+
 
 We run the tests:
 
@@ -97,6 +98,7 @@ $ datacontract export --format html https://datacontract.com/examples/orders-lat
 
 which will create this [HTML export](https://datacontract.com/examples/orders-latest/datacontract.html).
 
+
 ## Usage
 
 ```bash
@@ -149,13 +151,13 @@ Python 3.11 recommended.
 Python 3.12 available as pre-release release candidate for 0.9.3
 
 ```bash
-python3 -m pip install datacontract-cli
+python3 -m pip install datacontract-cli[all]
 ```
 
 ### pipx
 pipx installs into an isolated environment.
 ```bash
-pipx install datacontract-cli
+pipx install datacontract-cli[all]
 ```
 
 ### Docker
@@ -170,6 +172,33 @@ Or via an alias that automatically uses the latest version:
 ```bash
 alias datacontract='docker run --rm -v "${PWD}:/home/datacontract" datacontract/cli:latest'
 ```
+
+
+## Optional Dependencies
+
+The CLI tool defines several optional dependencies (also known as extras) that can be installed for using with specific servers types.
+With _all_, all server dependencies are included.
+
+```bash
+pip install datacontract-cli[all]
+```
+
+A list of available extras:
+
+| Dependency             | Installation Command                       |
+|------------------------|--------------------------------------------|
+| Avro Support           | `pip install datacontract-cli[avro]`       |
+| Google BigQuery        | `pip install datacontract-cli[bigquery]`   |
+| Databricks Integration | `pip install datacontract-cli[databricks]` |
+| Deltalake Integration  | `pip install datacontract-cli[deltalake]`  |
+| Kafka Integration      | `pip install datacontract-cli[kafka]`      |
+| PostgreSQL Integration | `pip install datacontract-cli[postgres]`   |
+| S3 Integration         | `pip install datacontract-cli[s3]`         |
+| Snowflake Integration  | `pip install datacontract-cli[snowflake]`  |
+| Microsoft SQL Server   | `pip install datacontract-cli[sqlserver]`  |
+| Trino                  | `pip install datacontract-cli[trino]`      |
+
+
 
 ## Documentation
 
@@ -283,6 +312,7 @@ Supported server types:
 - [snowflake](#snowflake)
 - [kafka](#kafka)
 - [postgres](#postgres)
+- [trino](#trino)
 - [local](#local)
 
 Supported formats:
@@ -328,11 +358,12 @@ servers:
 
 #### Environment Variables
 
-| Environment Variable              | Example                       | Description           |
-|-----------------------------------|-------------------------------|-----------------------|
-| `DATACONTRACT_S3_REGION`            | `eu-central-1`                  | Region of S3 bucket   |
-| `DATACONTRACT_S3_ACCESS_KEY_ID`     | `AKIAXV5Q5QABCDEFGH`            | AWS Access Key ID     |
-| `DATACONTRACT_S3_SECRET_ACCESS_KEY` | `93S7LRrJcqLaaaa/XXXXXXXXXXXXX` | AWS Secret Access Key |
+| Environment Variable                | Example                         | Description                            |
+|-------------------------------------|---------------------------------|----------------------------------------|
+| `DATACONTRACT_S3_REGION`            | `eu-central-1`                  | Region of S3 bucket                    |
+| `DATACONTRACT_S3_ACCESS_KEY_ID`     | `AKIAXV5Q5QABCDEFGH`            | AWS Access Key ID                      |
+| `DATACONTRACT_S3_SECRET_ACCESS_KEY` | `93S7LRrJcqLaaaa/XXXXXXXXXXXXX` | AWS Secret Access Key                  |
+| `DATACONTRACT_S3_SESSION_TOKEN`     | `AQoDYXdzEJr...`                | AWS temporary session token (optional) |
 
 
 
@@ -362,7 +393,7 @@ models:
 
 | Environment Variable                         | Example                   | Description                                             |
 |----------------------------------------------|---------------------------|---------------------------------------------------------|
-| `DATACONTRACT_BIGQUERY_ACCOUNT_INFO_JSON_PATH` | `~/service-access-key.json` | Service Access key as saved on key creation by BigQuery |
+| `DATACONTRACT_BIGQUERY_ACCOUNT_INFO_JSON_PATH` | `~/service-access-key.json` | Service Access key as saved on key creation by BigQuery. If this environment variable isn't set, the cli tries to use `GOOGLE_APPLICATION_CREDENTIALS` as a fallback, so if you have that set for using their Python library anyway, it should work seamlessly. |
 
 
 
@@ -486,7 +517,7 @@ models:
 
 Notebook
 ```python
-%pip install datacontract-cli
+%pip install datacontract-cli[databricks]
 dbutils.library.restartPython()
 
 from datacontract.data_contract import DataContract
@@ -623,6 +654,35 @@ models:
 | `DATACONTRACT_POSTGRES_PASSWORD` | `mysecretpassword` | Password    |
 
 
+### Trino
+
+Data Contract CLI can test data in Trino.
+
+#### Example
+
+datacontract.yaml
+```yaml
+servers:
+  trino:
+    type: trino
+    host: localhost
+    port: 8080
+    catalog: my_catalog
+    schema: my_schema
+models:
+  my_table_1: # corresponds to a table
+    type: table
+    fields:
+      my_column_1: # corresponds to a column
+        type: varchar
+```
+
+#### Environment Variables
+
+| Environment Variable          | Example            | Description |
+|-------------------------------|--------------------|-------------|
+| `DATACONTRACT_TRINO_USERNAME` | `trino`            | Username    |
+| `DATACONTRACT_TRINO_PASSWORD` | `mysecretpassword` | Password    |
 
 
 
@@ -630,10 +690,10 @@ models:
 
 ```
 
- Usage: datacontract export [OPTIONS] [LOCATION]                                                                                                                           
-                                                                                                                                                                           
- Convert data contract to a specific format. Prints to stdout or to the specified output file.                                                                                                     
-                                                                                                                                                                           
+ Usage: datacontract export [OPTIONS] [LOCATION]
+
+ Convert data contract to a specific format. Prints to stdout or to the specified output file.
+
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │   location      [LOCATION]  The location (url or path) of the data contract yaml. [default: datacontract.yaml]                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -641,7 +701,7 @@ models:
 │ *  --format        [jsonschema|pydantic-model|sodacl|dbt|dbt-sources|db  The export format. [default: None] [required]         │
 │                    t-staging-sql|odcs|rdf|avro|protobuf|great-expectati                                                        │
 │                    ons|terraform|avro-idl|sql|sql-query|html|go|bigquer                                                        │
-│                    y|dbml]                                                                                                     │
+│                    y|dbml|spark]                                                                                                     │
 │    --output        PATH                                                  Specify the file path where the exported data will be │
 │                                                                          saved. If no path is provided, the output will be     │
 │                                                                          printed to stdout.                                    │
@@ -691,6 +751,7 @@ Available export options:
 | `go`                 | Export to Go types                                      | ✅     |
 | `pydantic-model`     | Export to pydantic models                               | ✅     |
 | `DBML`               | Export to a DBML Diagram description                    | ✅     |
+| `spark`              | Export to a Spark StructType                            | ✅     |
 | Missing something?   | Please create an issue on GitHub                        | TBD    |
 
 #### Great Expectations
@@ -734,13 +795,17 @@ data products, find the true domain owner of a field attribute)
 #### DBML
 
 The export function converts the logical data types of the datacontract into the specific ones of a concrete Database
-if a server is selected via the `--server` option (based on the `type` of that server). If no server is selected, the 
+if a server is selected via the `--server` option (based on the `type` of that server). If no server is selected, the
 logical data types are exported.
 
+#### Spark
+
+The export function converts the data contract specification into a StructType Spark schema. The returned value is a Python code picture of the model schemas.  
+Spark DataFrame schema is defined as StructType. For more details about Spark Data Types please see [the spark documentation](https://spark.apache.org/docs/latest/sql-ref-datatypes.html) 
 
 #### Avro
 
-The export function converts the data contract specification into an avro schema. It supports specifying custom avro properties for logicalTypes and default values. 
+The export function converts the data contract specification into an avro schema. It supports specifying custom avro properties for logicalTypes and default values.
 
 ##### Custom Avro Properties
 
@@ -760,7 +825,7 @@ models:
         description: Example for AVRO with Timestamp (microsecond precision) https://avro.apache.org/docs/current/spec.html#Local+timestamp+%28microsecond+precision%29
         type: long
         example: 1672534861000000  # Equivalent to 2023-01-01 01:01:01 in microseconds
-        config:          
+        config:
           avroLogicalType: local-timestamp-micros
           avroDefault: 1672534861000000
 ```
@@ -784,21 +849,21 @@ models:
 ```
  Usage: datacontract import [OPTIONS]
 
- Create a data contract from the given source location. Prints to stdout.                                                              
-                                                                                                                                       
+ Create a data contract from the given source location. Prints to stdout.
+
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ *  --format                  [sql|avro|glue|bigquery|jsonschema]  The format of the source file. [default: None] [required]         │
-│    --source                  TEXT                                 The path to the file or Glue Database that should be imported.    │
-│                                                                   [default: None]                                                   │
-│    --glue-table              TEXT                                 List of table ids to import from the Glue Database (repeat for    │
-│                                                                   multiple table ids, leave empty for all tables in the dataset).   │
-│                                                                   [default: None]                                                   │
-│    --bigquery-project        TEXT                                 The bigquery project id. [default: None]                          │
-│    --bigquery-dataset        TEXT                                 The bigquery dataset id. [default: None]                          │
-│    --bigquery-table          TEXT                                 List of table ids to import from the bigquery API (repeat for     │
-│                                                                   multiple table ids, leave empty for all tables in the dataset).   │
-│                                                                   [default: None]                                                   │
-│    --help                                                         Show this message and exit.                                       │
+│ *  --format                  [sql|avro|glue|bigquery|jsonschema|unity]  The format of the source file. [default: None] [required]         │
+│    --source                  TEXT                                       The path to the file or Glue Database that should be imported.    │
+│                                                                         [default: None]                                                   │
+│    --glue-table              TEXT                                       List of table ids to import from the Glue Database (repeat for    │
+│                                                                         multiple table ids, leave empty for all tables in the dataset).   │
+│                                                                         [default: None]                                                   │
+│    --bigquery-project        TEXT                                       The bigquery project id. [default: None]                          │
+│    --bigquery-dataset        TEXT                                       The bigquery dataset id. [default: None]                          │
+│    --bigquery-table          TEXT                                       List of table ids to import from the bigquery API (repeat for     │
+│                                                                         multiple table ids, leave empty for all tables in the dataset).   │
+│                                                                         [default: None]                                                   │
+│    --help                                                               Show this message and exit.                                       │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -816,10 +881,11 @@ Available import options:
 | `avro`             | Import from AVRO schemas                       | ✅      |
 | `glue`             | Import from AWS Glue DataCatalog               | ✅      |
 | `protobuf`         | Import from Protobuf schemas                   | TBD     |
-| `jsonschema`       | Import from JSON Schemas                       | ✅      |
-| `bigquery`         | Import from BigQuery Schemas                   | ✅      |
+| `jsonschema`       | Import from JSON Schemas                       | ✅       |
+| `bigquery`         | Import from BigQuery Schemas                   | ✅       |
+| `unity`            | Import from Databricks Unity Catalog           | partial |
 | `dbt`              | Import from dbt models                         | TBD     |
-| `odcs`             | Import from Open Data Contract Standard (ODCS) | TBD     |
+| `odcs`             | Import from Open Data Contract Standard (ODCS) | ✅       |
 | Missing something? | Please create an issue on GitHub               | TBD     |
 
 
@@ -831,7 +897,7 @@ To import from the Bigquery API, you have to _omit_ `source` and instead need to
 
 For providing authentication to the Client, please see [the google documentation](https://cloud.google.com/docs/authentication/provide-credentials-adc#how-to) or the one [about authorizing client libraries](https://cloud.google.com/bigquery/docs/authentication#client-libs).
 
-Examples: 
+Examples:
 
 ```bash
 # Example import from Bigquery JSON
@@ -848,12 +914,26 @@ datacontract import --format bigquery --bigquery-project <project_id> --bigquery
 datacontract import --format bigquery --bigquery-project <project_id> --bigquery-dataset <dataset_id>
 ```
 
+#### Unity Catalog
+
+```bash
+# Example import from a Unity Catalog JSON file
+datacontract import --format unity --source my_unity_table.json
+```
+
+```bash
+# Example import single table from Unity Catalog via HTTP endpoint
+export DATABRICKS_IMPORT_INSTANCE="https://xyz.cloud.databricks.com"
+export DATABRICKS_IMPORT_ACCESS_TOKEN=<token>
+datacontract import --format unity --unity-table-full-name <table_full_name>
+```
+
 ### Glue
 
 Importing from Glue reads the necessary Data directly off of the AWS API.
 You may give the `glue-table` parameter to enumerate the tables that should be imported. If no tables are given, _all_ available tables of the database will be imported.
 
-Examples: 
+Examples:
 
 ```bash
 # Example import from AWS Glue with specifying the tables to import
@@ -1098,6 +1178,121 @@ Examples: Removing or renaming models and fields.
   $ datacontract changelog datacontract-from-pr.yaml datacontract-from-main.yaml
   ```
 
+## Customizing Exporters and Importers
+ 
+### Custom Exporter
+Using the exporter factory to add a new custom exporter
+```python
+
+from datacontract.data_contract import DataContract
+from datacontract.export.exporter import Exporter
+from datacontract.export.exporter_factory import exporter_factory
+
+
+# Create a custom class that implements export method
+class CustomExporter(Exporter):
+    def export(self, data_contract, model, server, sql_server_type, export_args) -> dict:
+        result = {
+            "title": data_contract.info.title,
+            "version": data_contract.info.version,
+            "description": data_contract.info.description,
+            "email": data_contract.info.contact.email,
+            "url": data_contract.info.contact.url,
+            "model": model,
+            "model_columns": ", ".join(list(data_contract.models.get(model).fields.keys())),
+            "export_args": export_args,
+            "custom_args": export_args.get("custom_arg", ""),
+        }
+        return result
+
+
+# Register the new custom class into factory
+exporter_factory.register_exporter("custom", CustomExporter)
+
+
+if __name__ == "__main__":
+    # Create a DataContract instance
+    data_contract = DataContract(
+        data_contract_file="/path/datacontract.yaml"
+    )
+    # call export
+    result = data_contract.export(
+        export_format="custom", model="orders", server="production", custom_arg="my_custom_arg"
+    )
+    print(result)
+
+```
+Output
+```python
+{
+ 'title': 'Orders Unit Test', 
+ 'version': '1.0.0', 
+ 'description': 'The orders data contract', 
+ 'email': 'team-orders@example.com', 
+ 'url': 'https://wiki.example.com/teams/checkout', 
+ 'model': 'orders', 
+ 'model_columns': 'order_id, order_total, order_status', 
+ 'export_args': {'server': 'production', 'custom_arg': 'my_custom_arg'}, 
+ 'custom_args': 'my_custom_arg'
+}
+```
+  
+### Custom Importer
+Using the importer factory to add a new custom importer
+```python
+
+from datacontract.model.data_contract_specification import DataContractSpecification
+from datacontract.data_contract import DataContract
+from datacontract.imports.importer import Importer
+from datacontract.imports.importer_factory import importer_factory
+import json
+
+# Create a custom class that implements import_source method
+class CustomImporter(Importer):
+    def import_source(
+        self, data_contract_specification: DataContractSpecification, source: str, import_args: dict
+    ) -> dict:
+        source_dict = json.loads(source)
+        data_contract_specification.id = source_dict.get("id_custom")
+        data_contract_specification.info.title = source_dict.get("title")
+        data_contract_specification.info.description = source_dict.get("description_from_app")
+
+        return data_contract_specification
+
+
+# Register the new custom class into factory
+importer_factory.register_importer("custom_company_importer", CustomImporter)
+
+
+if __name__ == "__main__":
+    # get a custom da
+    json_from_custom_app = '{"id_custom":"uuid-custom","version":"0.0.2", "title":"my_custom_imported_data", "description_from_app": "Custom contract description"}'
+    # Create a DataContract instance
+    data_contract = DataContract()
+
+    # call import_from
+    result = data_contract.import_from_source(
+        format="custom_company_importer", data_contract_specification=DataContract.init(), source=json_from_custom_app
+    )
+    print(dict(result))
+
+```
+Output
+
+```python
+{
+  'dataContractSpecification': '0.9.3', 
+  'id': 'uuid-custom', 
+  'info': Info(title='my_custom_imported_data', version='0.0.1', status=None, description='Custom contract description', owner=None, contact=None), 
+  'servers': {}, 
+  'terms': None, 
+  'models': {}, 
+  'definitions': {}, 
+  'examples': [], 
+  'quality': None, 
+  'servicelevels': None
+}
+```
 ## Development Setup
 
 Python base interpreter should be 3.11.x (unless working on 3.12 release candidate).
@@ -1110,8 +1305,8 @@ source venv/bin/activate
 # Install Requirements
 pip install --upgrade pip setuptools wheel
 pip install -e '.[dev]'
-ruff check --fix
-ruff format
+pre-commit install
+pre-commit run --all-files
 pytest
 ```
 
@@ -1147,7 +1342,26 @@ docker compose run --rm datacontract --version
 
 This command runs the container momentarily to check the version of the `datacontract` CLI. The `--rm` flag ensures that the container is automatically removed after the command executes, keeping your environment clean.
 
+## Use with pre-commit
 
+To run `datacontract-cli` as part of a [pre-commit](https://pre-commit.com/) workflow, add something like the below to the `repos` list in the project's `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/datacontract/datacontract-cli
+    rev: "v0.10.9"
+    hooks:
+      - id: datacontract-lint
+      - id: datacontract-test
+        args: ["--server", "production"]
+```
+
+### Available Hook IDs
+
+| Hook ID           | Description              | Dependency |
+| ----------------- | ------------------------ | ---------- |
+| datacontract-lint | Runs the lint subcommand. | Python3    |
+| datacontract-test | Runs the test subcommand. Please look at [test](#test) section for all available arguments. | Python3 |
 
 ## Release Steps
 
@@ -1166,6 +1380,12 @@ We are happy to receive your contributions. Propose your change in an issue or d
 
 - [INNOQ](https://innoq.com)
 - And many more. To add your company, please create a pull request.
+
+## Related Tools
+
+- [Data Mesh Manager](https://www.datamesh-manager.com/) is a commercial tool to manage data products and data contracts. It supports the data contract specification and allows the user to import or export data contracts using this specification.
+- [Data Contract GPT](https://gpt.datacontract.com) is a custom GPT that can help you write data contracts.
+- [Data Contract Editor](https://editor.datacontract.com) is an editor for Data Contracts, including a live html preview.
 
 ## License
 

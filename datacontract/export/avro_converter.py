@@ -1,6 +1,13 @@
 import json
 
+from datacontract.export.exporter import Exporter, _check_models_for_export
 from datacontract.model.data_contract_specification import Field
+
+
+class AvroExporter(Exporter):
+    def export(self, data_contract, model, server, sql_server_type, export_args) -> dict:
+        model_name, model_value = _check_models_for_export(data_contract, model, self.export_format)
+        return to_avro_schema_json(model_name, model_value)
 
 
 def to_avro_schema(model_name, model) -> dict:
@@ -47,7 +54,13 @@ def to_avro_type(field: Field, field_name: str) -> str | dict:
         if "avroLogicalType" in field.config and "avroType" in field.config:
             return {"type": field.config["avroType"], "logicalType": field.config["avroLogicalType"]}
         if "avroLogicalType" in field.config:
-            if field.config["avroLogicalType"] in ["timestamp-millis", "timestamp-micros", "local-timestamp-millis", "local-timestamp-micros", "time-micros"]:
+            if field.config["avroLogicalType"] in [
+                "timestamp-millis",
+                "timestamp-micros",
+                "local-timestamp-millis",
+                "local-timestamp-micros",
+                "time-micros",
+            ]:
                 return {"type": "long", "logicalType": field.config["avroLogicalType"]}
             if field.config["avroLogicalType"] in ["time-millis", "date"]:
                 return {"type": "int", "logicalType": field.config["avroLogicalType"]}
@@ -82,8 +95,7 @@ def to_avro_type(field: Field, field_name: str) -> str | dict:
     elif field.type in ["binary"]:
         return "bytes"
     elif field.type in ["array"]:
-        # TODO support array structs
-        return "array"
+        return {"type": "array", "items": to_avro_type(field.items, field_name)}
     elif field.type in ["null"]:
         return "null"
     else:

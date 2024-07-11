@@ -55,6 +55,16 @@ def setup_mock_glue(aws_credentials):
                             "Name": "field_three",
                             "Type": "timestamp",
                         },
+                        {"Name": "field_four", "Type": "decimal(6,2)"},
+                        {
+                            "Name": "field_five",
+                            "Type": "struct<sub_field_one:string, sub_field_two: boolean>",
+                        },
+                        {"Name": "field_six", "Type": "array<string>"},
+                        {
+                            "Name": "field_seven",
+                            "Type": "array<struct<sub_field_three:string, sub_field_four:int>>",
+                        },
                     ]
                 },
                 "PartitionKeys": [
@@ -83,6 +93,7 @@ def test_cli(setup_mock_glue):
         ],
     )
     assert result.exit_code == 0
+
 
 @mock_aws
 def test_cli_with_table_filters(setup_mock_glue):
@@ -116,9 +127,10 @@ def test_import_glue_schema(setup_mock_glue):
     # Disable linters so we don't get "missing description" warnings
     assert DataContract(data_contract_str=expected).lint(enabled_linters=set()).has_passed()
 
+
 @mock_aws
 def test_import_glue_schema_with_table_filters(setup_mock_glue):
-    result = DataContract().import_from_source("glue", "test_database", ["table_1"])
+    result = DataContract().import_from_source(format="glue", source="test_database", glue_tables=["table_1"])
 
     # we specify a table that the Mock doesn't have and thus expect an empty result
     with open("fixtures/glue/datacontract-empty-model.yaml") as file:
